@@ -159,7 +159,6 @@ ext.search = function(data)
         return {}
     end
 
-    -- FanMTL uses EmpireCMS search.
     local searchURL =
         "https://www.fanmtl.com/e/search/" ..
         "?searchget=1" ..
@@ -181,30 +180,34 @@ ext.search = function(data)
     local results = {}
     local seen = {}
 
-    -- Use the collection's map() API instead of get()/size()
-    -- or mapNotNil(), which varies between Shosetsu library versions.
-    local parsed = map(links, function(el)
+    map(links, function(el)
+
+        local href = el:attr("href")
+
+        if not href or href == "" then
+            return nil
+        end
+
+        if not href:match("/novel/") then
+            return nil
+        end
+
+        -- Deduplicate using the ORIGINAL href,
+        -- before creating the Novel object.
+        if seen[href] then
+            return nil
+        end
+
+        seen[href] = true
 
         local novel = makeNovel(el)
 
-        if not novel then
-            return nil
-        end
-
-        if seen[novel.link] then
-            return nil
-        end
-
-        seen[novel.link] = true
-
-        return novel
-    end)
-
-    for _, novel in ipairs(parsed) do
         if novel then
             table.insert(results, novel)
         end
-    end
+
+        return nil
+    end)
 
     return results
 end
