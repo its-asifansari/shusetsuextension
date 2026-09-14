@@ -1,0 +1,34 @@
+{
+  "authors": [
+    {
+      "id": 1308639971,
+      "name": "FanMTL Fixed",
+      "desc": "Fixed FanMTL Shosetsu extension",
+      "imageURL": "",
+      "website": "https://www.fanmtl.com/"
+    }
+  ],
+  "libraries": [
+    {
+      "name": "ReadWN",
+      "ver": "1.0.11",
+      "url": null,
+      "hash": "3a27fd0b395a01361673c061868fcab998da2e01900a81712002a0ac3efe4cc9"
+    }
+  ],
+  "scripts": [
+    {
+      "id": 1308639971,
+      "name": "FansMTL (FanMTL Fixed)",
+      "fileName": "FansMTL",
+      "imageURL": "https://jobobby04.github.io/ShosetsuExtensions/master/icons/fans_mtl.png",
+      "lang": "en",
+      "ver": "1.0.4",
+      "libVer": "1.0.0",
+      "md5": "59d5dea339c66429c3e7bf125ec6d309",
+      "type": "LuaScript"
+    }
+  ],
+  "styles": [],
+  "js": []
+}
