@@ -657,7 +657,7 @@ ext.parseNovel = function(
     -- us no new chapters.
     ------------------------------------------------------------
 
-    local page = 1
+    local page = 0
     local maxPages = 20
 
     while page <= maxPages do
