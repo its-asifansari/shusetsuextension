@@ -1,4 +1,4 @@
--- {"id":1308639971,"ver":"1.0.6","libVer":"1.0.0","author":"Jobobby04 / fixed","dep":["ReadWN>=1.0.11"]}
+-- {"id":1308639971,"ver":"1.0.7","libVer":"1.0.0","author":"Jobobby04 / fixed","dep":["ReadWN>=1.0.11"]}
 
 local GENRES = {
     "All",
@@ -46,46 +46,31 @@ local GENRES = {
     "Korean",
 }
 
-
 local BASE_URL = "https://www.fanmtl.com"
 
-
 local ext = Require("ReadWN")(BASE_URL, {
-
     id = 1308639971,
-
     name = "FansMTL",
-
     imageURL =
         "https://jobobby04.github.io/ShosetsuExtensions/master/icons/fans_mtl.png",
-
     shrinkURLNovel = "^.-fanmtl%.com",
-
     hasCloudFlare = true,
-
     genres = GENRES,
 
     listingsMap = {
-
         {
             name = "Recently Added Chapters",
-
             increments = false,
-
             selector =
                 "#latest-updates .novel-list.grid.col .novel-item a",
-
             url = function(data)
                 return BASE_URL
             end
         },
 
-
         {
             name = "Popular Daily Updates",
-
             increments = true,
-
             url = function(data)
                 return
                     BASE_URL ..
@@ -95,12 +80,9 @@ local ext = Require("ReadWN")(BASE_URL, {
             end
         },
 
-
         {
             name = "Most Popular",
-
             increments = true,
-
             url = function(data)
                 return
                     BASE_URL ..
@@ -110,12 +92,9 @@ local ext = Require("ReadWN")(BASE_URL, {
             end
         },
 
-
         {
             name = "New to Web Novels",
-
             increments = true,
-
             url = function(data)
                 return
                     BASE_URL ..
@@ -124,18 +103,14 @@ local ext = Require("ReadWN")(BASE_URL, {
                     ".html"
             end
         }
-
     },
-
 })
 
-
 ----------------------------------------------------------------
--- URL ENCODING
+-- URL HELPERS
 ----------------------------------------------------------------
 
 local function urlEncode(value)
-
     value = tostring(value)
 
     return value:gsub(
@@ -147,300 +122,208 @@ local function urlEncode(value)
             )
         end
     )
-
 end
 
-
-----------------------------------------------------------------
--- ABSOLUTE URL
-----------------------------------------------------------------
-
 local function absoluteURL(url)
-
     if not url or url == "" then
         return nil
     end
 
-
+    -- Already absolute.
     if url:match("^https?://") then
         return url
     end
 
-
+    -- Protocol-relative URL.
     if url:sub(1, 2) == "//" then
         return "https:" .. url
     end
 
-
+    -- Root-relative URL.
     if url:sub(1, 1) == "/" then
         return BASE_URL .. url
     end
 
-
+    -- Relative URL.
     return BASE_URL .. "/" .. url
-
 end
 
+----------------------------------------------------------------
+-- IMPORTANT:
+-- ReadWN normally prefixes BASE_URL through expandURL().
+--
+-- FanMTL sometimes gives us an already complete URL such as:
+-- https://www.fanmtl.com/novel/....
+--
+-- Without this override ReadWN can produce:
+--
+-- https://www.fanmtl.comhttps://www.fanmtl.com/novel/....
+--
+-- which causes:
+-- Unable to resolve host "www.fanmtl.comhttps"
+----------------------------------------------------------------
+
+ext.expandURL = function(url)
+    return absoluteURL(url)
+end
 
 ----------------------------------------------------------------
--- CLEAN IMAGE URL
+-- IMAGE HELPERS
 ----------------------------------------------------------------
 
 local function cleanImageURL(url)
-
     if not url or url == "" then
         return nil
     end
 
-
     local lower = url:lower()
-
 
     if lower:find("placeholder", 1, true) then
         return nil
     end
 
-
     if lower:find("loading", 1, true) then
         return nil
     end
 
-
     return absoluteURL(url)
-
 end
 
-
-----------------------------------------------------------------
--- GET IMAGE FROM ELEMENT
-----------------------------------------------------------------
-
 local function getImage(el)
-
     if not el then
         return nil
     end
-
 
     local image
 
-
     image = el:attr("data-original")
-
     image = cleanImageURL(image)
 
     if image then
         return image
     end
-
 
     image = el:attr("data-src")
-
     image = cleanImageURL(image)
 
     if image then
         return image
     end
-
 
     image = el:attr("data-lazy-src")
-
     image = cleanImageURL(image)
 
     if image then
         return image
     end
-
 
     image = el:attr("data-cfsrc")
-
     image = cleanImageURL(image)
 
     if image then
         return image
     end
-
 
     image = el:attr("data-image")
-
     image = cleanImageURL(image)
 
     if image then
         return image
     end
-
 
     image = el:attr("src")
-
     image = cleanImageURL(image)
 
     if image then
         return image
     end
 
-
     return nil
-
 end
 
-
 ----------------------------------------------------------------
--- PARSE ONE SEARCH LINK
+-- SEARCH RESULT PARSER
 ----------------------------------------------------------------
 
 local function parseSearchLink(el)
-
     if not el then
         return nil
     end
 
-
     local href = el:attr("href")
-
 
     if not href or href == "" then
         return nil
     end
 
-
     if not href:match("/novel/") then
         return nil
     end
 
-
     local link = absoluteURL(href)
-
 
     if not link then
         return nil
     end
 
-
-    ------------------------------------------------------------
-    -- TITLE
-    ------------------------------------------------------------
-
     local title
-
 
     local titleEl =
         el:selectFirst(
             ".novel-title, .title, h3, h4"
         )
 
-
     if titleEl then
         title = titleEl:text()
     end
-
 
     if not title or title == "" then
         title = el:text()
     end
 
-
     if not title or title == "" then
         return nil
     end
 
-
     title = title:gsub("^%s+", "")
     title = title:gsub("%s+$", "")
-
 
     if title == "" then
         return nil
     end
 
-
-    ------------------------------------------------------------
-    -- COVER
-    ------------------------------------------------------------
-
     local imageURL
-
 
     local img =
         el:selectFirst("img")
 
-
     if img then
         imageURL = getImage(img)
     end
-
-
-    ------------------------------------------------------------
-    -- If the image is a sibling of the link, inspect the
-    -- immediate parent result container.
-    ------------------------------------------------------------
-
-    if not imageURL then
-
-        local parent =
-            el:selectFirst(
-                "xpath=.."
-            )
-
-        if parent then
-
-            local parentImg =
-                parent:selectFirst("img")
-
-            if parentImg then
-                imageURL = getImage(parentImg)
-            end
-
-        end
-
-    end
-
 
     return Novel {
         title = title,
         link = link,
         imageURL = imageURL
     }
-
 end
-
 
 ----------------------------------------------------------------
 -- SEARCH
 ----------------------------------------------------------------
 
 ext.search = function(data)
-
     local query = data[QUERY]
-
 
     if not query or query == "" then
         return {}
     end
 
-
-    local currentPage =
-        data[PAGE] or 1
-
-
-    ------------------------------------------------------------
-    -- FanMTL uses EmpireCMS.
-    --
-    -- The important fields are:
-    --
-    -- keyboard
-    -- show
-    -- tempid
-    -- tbname
-    --
-    -- These correspond to FanMTL's search form.
-    ------------------------------------------------------------
-
     local encoded =
         urlEncode(query)
 
-
     ------------------------------------------------------------
-    -- POST SEARCH
+    -- EmpireCMS POST search
     ------------------------------------------------------------
 
     local payload =
@@ -449,19 +332,16 @@ ext.search = function(data)
         "&tempid=1" ..
         "&tbname=news"
 
-
     local mediaType =
         MediaType(
             "application/x-www-form-urlencoded"
         )
-
 
     local body =
         RequestBody(
             payload,
             mediaType
         )
-
 
     local headers =
         HeadersBuilder()
@@ -487,18 +367,11 @@ ext.search = function(data)
             )
             :build()
 
-
     local document
-
-
-    ------------------------------------------------------------
-    -- pcall prevents a failed POST from crashing the extension.
-    ------------------------------------------------------------
 
     local postOK, postResult =
         pcall(
             function()
-
                 return RequestDocument(
                     POST(
                         BASE_URL ..
@@ -507,18 +380,15 @@ ext.search = function(data)
                         body
                     )
                 )
-
             end
         )
-
 
     if postOK then
         document = postResult
     end
 
-
     ------------------------------------------------------------
-    -- GET FALLBACK
+    -- GET fallback
     ------------------------------------------------------------
 
     if not document then
@@ -532,36 +402,26 @@ ext.search = function(data)
             "&tempid=1" ..
             "&tbname=news"
 
-
         local getOK, getResult =
             pcall(
                 function()
-
                     return GETDocument(
                         searchURL
                     )
-
                 end
             )
-
 
         if getOK then
             document = getResult
         end
-
     end
-
 
     if not document then
         return {}
     end
 
-
     ------------------------------------------------------------
-    -- SEARCH RESULTS
-    --
-    -- Use the actual novel links because those were already
-    -- proven to work with FanMTL search.
+    -- Find novel links
     ------------------------------------------------------------
 
     local links =
@@ -569,16 +429,12 @@ ext.search = function(data)
             "a[href*='/novel/']"
         )
 
-
     if not links then
         return {}
     end
 
-
     local results = {}
-
     local seen = {}
-
 
     map(
         links,
@@ -587,60 +443,41 @@ ext.search = function(data)
             local href =
                 el:attr("href")
 
-
             if not href or href == "" then
                 return nil
             end
-
 
             if not href:match("/novel/") then
                 return nil
             end
 
-
             ----------------------------------------------------
-            -- Deduplicate before Novel creation.
+            -- IMPORTANT:
+            -- Deduplicate using the raw href BEFORE Novel().
+            -- Novel().link can be a table in this Shosetsu build.
             ----------------------------------------------------
 
             if seen[href] then
                 return nil
             end
 
-
             seen[href] = true
-
-
-            ----------------------------------------------------
-            -- Parse result.
-            ----------------------------------------------------
 
             local novel =
                 parseSearchLink(el)
 
-
             if novel then
-
                 table.insert(
                     results,
                     novel
                 )
-
             end
 
-
             return nil
-
         end
     )
 
-
     return results
-
 end
-
-
-----------------------------------------------------------------
--- RETURN EXTENSION
-----------------------------------------------------------------
 
 return ext
