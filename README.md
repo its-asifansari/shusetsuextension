@@ -14,7 +14,7 @@ Upload the contents of this folder to a GitHub repository with GitHub Pages enab
 
 Then add this URL in Shosetsu > More > Repositories:
 
-`https://github.com/its-asifansari/shusetsuextension/`
+`https://its-asifansari.github.io/shusetsuextension/`
 
 
 The existing Shosetsu repository guide explains this format:
