@@ -79,7 +79,6 @@ local function absoluteURL(url)
         return url
     end
 
-    -- Protocol-relative URL
     if url:sub(1, 2) == "//" then
         return "https:" .. url
     end
@@ -92,65 +91,18 @@ local function absoluteURL(url)
 end
 
 
-local function getCoverFromNovelPage(link)
-    local doc = GETDocument(link)
+local function makeNovel(item)
 
-    if not doc then
+    -- Find the actual novel link inside the result card.
+    local linkEl = item:selectFirst("a[href*='/novel/']")
+
+    if not linkEl then
         return nil
     end
 
-    -- FanMTL's page metadata
-    local ogImage = doc:selectFirst("meta[property='og:image']")
-
-    if ogImage then
-        local image = ogImage:attr("content")
-
-        if image and image ~= "" then
-            return absoluteURL(image)
-        end
-    end
-
-    -- Twitter fallback
-    local twitterImage = doc:selectFirst("meta[name='twitter:image']")
-
-    if twitterImage then
-        local image = twitterImage:attr("content")
-
-        if image and image ~= "" then
-            return absoluteURL(image)
-        end
-    end
-
-    -- Normal image fallback
-    local img = doc:selectFirst(
-        ".novel-cover img, .book-cover img, .novel-info img, img"
-    )
-
-    if img then
-        local image = img:attr("src")
-
-        if not image or image == "" then
-            image = img:attr("data-src")
-        end
-
-        if image and image ~= "" then
-            return absoluteURL(image)
-        end
-    end
-
-    return nil
-end
-
-
-local function makeNovel(el)
-
-    local href = el:attr("href")
+    local href = linkEl:attr("href")
 
     if not href or href == "" then
-        return nil
-    end
-
-    if not href:match("/novel/") then
         return nil
     end
 
@@ -160,7 +112,9 @@ local function makeNovel(el)
         return nil
     end
 
-    local titleEl = el:selectFirst(
+
+    -- Get title.
+    local titleEl = item:selectFirst(
         ".novel-title, .title, h3, h4"
     )
 
@@ -171,7 +125,11 @@ local function makeNovel(el)
     end
 
     if not title or title == "" then
-        title = el:text()
+        title = linkEl:text()
+    end
+
+    if not title or title == "" then
+        title = item:text()
     end
 
     if not title or title == "" then
@@ -185,16 +143,26 @@ local function makeNovel(el)
         return nil
     end
 
-    -- First try an image directly inside the search result.
+
+    -- Get cover directly from the search-result card.
     local imageURL
 
-    local img = el:selectFirst("img")
+    local img = item:selectFirst("img")
 
     if img then
+
         imageURL = img:attr("src")
 
         if not imageURL or imageURL == "" then
             imageURL = img:attr("data-src")
+        end
+
+        if not imageURL or imageURL == "" then
+            imageURL = img:attr("data-original")
+        end
+
+        if not imageURL or imageURL == "" then
+            imageURL = img:attr("data-lazy-src")
         end
 
         if imageURL and imageURL ~= "" then
@@ -202,17 +170,91 @@ local function makeNovel(el)
         end
     end
 
-    -- FanMTL search results usually don't expose the cover here.
-    -- Get it from the actual novel page instead.
-    if not imageURL then
-        imageURL = getCoverFromNovelPage(link)
-    end
 
     return Novel {
         title = title,
         link = link,
         imageURL = imageURL
     }
+end
+
+
+ext.search = function(data)
+
+    local query = data[QUERY]
+
+    if not query or query == "" then
+        return {}
+    end
+
+
+    -- FanMTL / EmpireCMS search.
+    local searchURL =
+        "https://www.fanmtl.com/e/search/" ..
+        "?searchget=1" ..
+        "&keyboard=" .. urlEncode(query) ..
+        "&show=title"
+
+
+    local document = GETDocument(searchURL)
+
+    if not document then
+        return {}
+    end
+
+
+    -- IMPORTANT:
+    -- Select the whole result card, not only its title <a>.
+    -- The cover image is normally a sibling/child of the title link.
+    local items = document:select(
+        ".novel-item"
+    )
+
+    if not items then
+        return {}
+    end
+
+
+    local results = {}
+    local seen = {}
+
+
+    map(items, function(item)
+
+        local novel = makeNovel(item)
+
+        if not novel then
+            return nil
+        end
+
+
+        -- Deduplicate using the href from the result card.
+        local linkEl = item:selectFirst("a[href*='/novel/']")
+
+        if not linkEl then
+            return nil
+        end
+
+        local href = linkEl:attr("href")
+
+        if not href or href == "" then
+            return nil
+        end
+
+
+        if seen[href] then
+            return nil
+        end
+
+        seen[href] = true
+
+        table.insert(results, novel)
+
+        return nil
+    end)
+
+
+    return results
 end
 
 
