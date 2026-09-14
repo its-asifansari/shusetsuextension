@@ -107,7 +107,7 @@ local ext = Require("ReadWN")(BASE_URL, {
 })
 
 ----------------------------------------------------------------
--- URL HELPERS
+-- URL
 ----------------------------------------------------------------
 
 local function urlEncode(value)
@@ -145,7 +145,8 @@ local function absoluteURL(url)
 end
 
 ----------------------------------------------------------------
--- FIX FOR READWN ABSOLUTE URL HANDLING
+-- Prevent ReadWN from producing:
+-- https://www.fanmtl.comhttps://www.fanmtl.com/...
 ----------------------------------------------------------------
 
 ext.expandURL = function(url)
@@ -153,7 +154,7 @@ ext.expandURL = function(url)
 end
 
 ----------------------------------------------------------------
--- IMAGE HELPERS
+-- IMAGE
 ----------------------------------------------------------------
 
 local function cleanImageURL(url)
@@ -181,53 +182,29 @@ local function getImage(el)
 
     local image
 
-    image = el:attr("data-original")
-    image = cleanImageURL(image)
+    image = cleanImageURL(el:attr("data-original"))
+    if image then return image end
 
-    if image then
-        return image
-    end
+    image = cleanImageURL(el:attr("data-src"))
+    if image then return image end
 
-    image = el:attr("data-src")
-    image = cleanImageURL(image)
+    image = cleanImageURL(el:attr("data-lazy-src"))
+    if image then return image end
 
-    if image then
-        return image
-    end
+    image = cleanImageURL(el:attr("data-cfsrc"))
+    if image then return image end
 
-    image = el:attr("data-lazy-src")
-    image = cleanImageURL(image)
+    image = cleanImageURL(el:attr("data-image"))
+    if image then return image end
 
-    if image then
-        return image
-    end
-
-    image = el:attr("data-cfsrc")
-    image = cleanImageURL(image)
-
-    if image then
-        return image
-    end
-
-    image = el:attr("data-image")
-    image = cleanImageURL(image)
-
-    if image then
-        return image
-    end
-
-    image = el:attr("src")
-    image = cleanImageURL(image)
-
-    if image then
-        return image
-    end
+    image = cleanImageURL(el:attr("src"))
+    if image then return image end
 
     return nil
 end
 
 ----------------------------------------------------------------
--- SEARCH RESULT PARSER
+-- SEARCH RESULT
 ----------------------------------------------------------------
 
 local function parseSearchLink(el)
@@ -279,8 +256,7 @@ local function parseSearchLink(el)
 
     local imageURL
 
-    local img =
-        el:selectFirst("img")
+    local img = el:selectFirst("img")
 
     if img then
         imageURL = getImage(img)
@@ -304,8 +280,7 @@ ext.search = function(data)
         return {}
     end
 
-    local encoded =
-        urlEncode(query)
+    local encoded = urlEncode(query)
 
     local payload =
         "keyboard=" .. encoded ..
@@ -350,10 +325,6 @@ ext.search = function(data)
 
     local document
 
-    ------------------------------------------------------------
-    -- POST SEARCH
-    ------------------------------------------------------------
-
     local postOK, postResult =
         pcall(
             function()
@@ -372,10 +343,6 @@ ext.search = function(data)
         document = postResult
     end
 
-    ------------------------------------------------------------
-    -- GET FALLBACK
-    ------------------------------------------------------------
-
     if not document then
 
         local searchURL =
@@ -390,9 +357,7 @@ ext.search = function(data)
         local getOK, getResult =
             pcall(
                 function()
-                    return GETDocument(
-                        searchURL
-                    )
+                    return GETDocument(searchURL)
                 end
             )
 
@@ -421,8 +386,7 @@ ext.search = function(data)
         links,
         function(el)
 
-            local href =
-                el:attr("href")
+            local href = el:attr("href")
 
             if not href or href == "" then
                 return nil
@@ -438,14 +402,10 @@ ext.search = function(data)
 
             seen[href] = true
 
-            local novel =
-                parseSearchLink(el)
+            local novel = parseSearchLink(el)
 
             if novel then
-                table.insert(
-                    results,
-                    novel
-                )
+                table.insert(results, novel)
             end
 
             return nil
@@ -456,18 +416,7 @@ ext.search = function(data)
 end
 
 ----------------------------------------------------------------
--- SAVE THE ORIGINAL READWN NOVEL PARSER
---
--- We use it ONLY for the novel's metadata.
--- We deliberately disable its chapter loading because its
--- chapter insertion is what caused the UNIQUE constraint error.
-----------------------------------------------------------------
-
-local originalParseNovel =
-    ext.parseNovel
-
-----------------------------------------------------------------
--- FANMTL CHAPTER PARSER
+-- CHAPTER HELPERS
 ----------------------------------------------------------------
 
 local function getFanMTLSlug(novelURL)
@@ -475,30 +424,20 @@ local function getFanMTLSlug(novelURL)
         return nil
     end
 
-    local slug =
-        novelURL:match(
-            "/novel/([^/?#]+)%.html"
-        )
-
-    return slug
+    return novelURL:match(
+        "/novel/([^/?#]+)%.html"
+    )
 end
 
-local function getChapterNumber(url, title)
-    local number
-
-    if url then
-        number =
-            url:match(
-                "_(%d+)%.html"
-            )
+local function getChapterNumber(url)
+    if not url then
+        return nil
     end
 
-    if not number and title then
-        number =
-            title:match(
-                "[Cc]hapter%s+(%d+)"
-            )
-    end
+    local number =
+        url:match(
+            "_(%d+)%.html"
+        )
 
     if number then
         return tonumber(number)
@@ -506,6 +445,10 @@ local function getChapterNumber(url, title)
 
     return nil
 end
+
+----------------------------------------------------------------
+-- FANMTL CHAPTER LINKS
+----------------------------------------------------------------
 
 local function parseFanMTLChapterLinks(document)
     if not document then
@@ -528,21 +471,11 @@ local function parseFanMTLChapterLinks(document)
         links,
         function(el)
 
-            local href =
-                el:attr("href")
+            local href = el:attr("href")
 
             if not href or href == "" then
                 return nil
             end
-
-            ----------------------------------------------------
-            -- FanMTL chapter URLs look like:
-            --
-            -- /novel/book-name_1.html
-            -- /novel/book-name_2.html
-            --
-            -- The main novel URL does NOT have _number.html.
-            ----------------------------------------------------
 
             if not href:match(
                 "/novel/[^/]+_%d+%.html"
@@ -557,43 +490,27 @@ local function parseFanMTLChapterLinks(document)
                 return nil
             end
 
-            ----------------------------------------------------
-            -- THE IMPORTANT FIX:
-            -- Deduplicate BEFORE NovelChapter is created.
-            ----------------------------------------------------
-
+            -- Remove duplicate URLs BEFORE
+            -- creating NovelChapter.
             if seen[fullURL] then
                 return nil
             end
 
             seen[fullURL] = true
 
-            local title =
-                el:text()
-
-            if title then
-                title =
-                    title:gsub("^%s+", "")
-                title =
-                    title:gsub("%s+$", "")
-            end
-
-            if not title or title == "" then
-                title =
-                    "Chapter " ..
-                    tostring(
-                        getChapterNumber(
-                            fullURL,
-                            nil
-                        ) or ""
-                    )
-            end
-
             local number =
-                getChapterNumber(
-                    fullURL,
-                    title
-                )
+                getChapterNumber(fullURL)
+
+            if not number then
+                return nil
+            end
+
+            -- IMPORTANT:
+            -- Only "Chapter N" goes into the title.
+            -- We do NOT put the number in front of it.
+            local title =
+                "Chapter " ..
+                tostring(number)
 
             table.insert(
                 chapters,
@@ -612,8 +529,11 @@ local function parseFanMTLChapterLinks(document)
 end
 
 ----------------------------------------------------------------
--- NOVEL PARSER OVERRIDE
+-- NOVEL PARSER
 ----------------------------------------------------------------
+
+local originalParseNovel =
+    ext.parseNovel
 
 ext.parseNovel = function(
     novelURL,
@@ -621,11 +541,7 @@ ext.parseNovel = function(
 )
 
     ------------------------------------------------------------
-    -- Let ReadWN handle title, cover, description, author,
-    -- genres, status, etc.
-    --
-    -- FALSE is critical:
-    -- don't let ReadWN create its duplicate chapters.
+    -- Let ReadWN get metadata, but DON'T let it create chapters.
     ------------------------------------------------------------
 
     local novelInfo =
@@ -639,9 +555,7 @@ ext.parseNovel = function(
     end
 
     local slug =
-        getFanMTLSlug(
-            novelURL
-        )
+        getFanMTLSlug(novelURL)
 
     if not slug then
         return novelInfo
@@ -651,10 +565,12 @@ ext.parseNovel = function(
     local seen = {}
 
     ------------------------------------------------------------
-    -- FanMTL chapter endpoint is paginated.
+    -- FanMTL starts at page 0:
     --
-    -- We check several pages and stop as soon as a page gives
-    -- us no new chapters.
+    -- page 0 = chapters 1-100
+    -- page 1 = chapters 101-200
+    -- page 2 = chapters 201-300
+    -- page 3 = chapters 301+
     ------------------------------------------------------------
 
     local page = 0
@@ -720,45 +636,35 @@ ext.parseNovel = function(
     end
 
     ------------------------------------------------------------
-    -- Sort by chapter number.
+    -- Sort chapters numerically.
     ------------------------------------------------------------
 
     table.sort(
         allChapters,
         function(a, b)
-
-            if a.number and b.number then
-                return a.number < b.number
-            end
-
-            if a.number then
-                return true
-            end
-
-            if b.number then
-                return false
-            end
-
-            return a.title < b.title
+            return a.number < b.number
         end
     )
 
     ------------------------------------------------------------
-    -- Convert into Shosetsu NovelChapter objects.
+    -- Create Shosetsu chapters.
     --
-    -- Every URL is already unique here.
+    -- order = actual chapter number
+    -- title = "Chapter N"
+    --
+    -- No "101 Chapter 101" is intentionally put into title.
     ------------------------------------------------------------
 
     local chapters = {}
 
-    for i, chapter in
+    for _, chapter in
         ipairs(allChapters)
     do
 
         table.insert(
             chapters,
             NovelChapter {
-                order = i,
+                order = chapter.number,
                 title = chapter.title,
                 link = chapter.link
             }
