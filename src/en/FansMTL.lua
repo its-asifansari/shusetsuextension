@@ -1,12 +1,4 @@
--- {"id":1308639971,"ver":"1.0.5","libVer":"1.0.0","author":"Jobobby04 / fixed","dep":["ReadWN>=1.0.11","url>=1.0.0"]}
-
--- FanMTL search fix
---
--- Uses FanMTL's search system instead of guessing novel URLs.
--- Returns multiple matching novels.
--- Keeps ReadWN for novel/chapter parsing.
-
-local qs = Require("url").querystring
+-- {"id":1308639971,"ver":"1.0.5","libVer":"1.0.0","author":"Jobobby04 / fixed","dep":["ReadWN>=1.0.11"]}
 
 local GENRES = {
     "All", "Action", "Adventure", "Comedy", "Contemporary Romance", "Drama",
@@ -21,24 +13,17 @@ local GENRES = {
 
 local ext = Require("ReadWN")("https://www.fanmtl.com", {
     id = 1308639971,
-
-    name = "FansMTL (FanMTL Search Fixed)",
-
+    name = "FansMTL",
     imageURL = "https://jobobby04.github.io/ShosetsuExtensions/master/icons/fans_mtl.png",
-
     shrinkURLNovel = "^.-fanmtl%.com",
-
     hasCloudFlare = true,
-
     genres = GENRES,
 
     listingsMap = {
         {
             name = "Recently Added Chapters",
             increments = false,
-
             selector = "#latest-updates .novel-list.grid.col .novel-item a",
-
             url = function(data)
                 return "https://www.fanmtl.com"
             end
@@ -47,7 +32,6 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
         {
             name = "Popular Daily Updates",
             increments = true,
-
             url = function(data)
                 return "https://www.fanmtl.com/list/all/all-lastdotime-" ..
                     (data[PAGE] - 1) .. ".html"
@@ -57,7 +41,6 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
         {
             name = "Most Popular",
             increments = true,
-
             url = function(data)
                 return "https://www.fanmtl.com/list/all/all-onclick-" ..
                     (data[PAGE] - 1) .. ".html"
@@ -67,7 +50,6 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
         {
             name = "New to Web Novels",
             increments = true,
-
             url = function(data)
                 return "https://www.fanmtl.com/list/all/all-newstime-" ..
                     (data[PAGE] - 1) .. ".html"
@@ -77,12 +59,18 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
 })
 
 
-------------------------------------------------------------
--- Convert FanMTL relative URLs into absolute URLs
-------------------------------------------------------------
+-- URL encode the search text ourselves.
+-- This avoids depending on the optional "url" library.
+local function urlEncode(str)
+    str = tostring(str)
+
+    return str:gsub("([^%w%-_%.~])", function(c)
+        return string.format("%%%02X", string.byte(c))
+    end)
+end
+
 
 local function absoluteURL(url)
-
     if not url or url == "" then
         return nil
     end
@@ -99,19 +87,13 @@ local function absoluteURL(url)
 end
 
 
-------------------------------------------------------------
--- Parse one search result
-------------------------------------------------------------
-
-local function parseSearchResult(el, seen)
-
+local function makeNovel(el)
     local href = el:attr("href")
 
     if not href or href == "" then
         return nil
     end
 
-    -- Only accept actual novel pages.
     if not href:match("/novel/") then
         return nil
     end
@@ -122,18 +104,7 @@ local function parseSearchResult(el, seen)
         return nil
     end
 
-    -- Remove duplicates.
-    if seen[link] then
-        return nil
-    end
-
-    --------------------------------------------------------
-    -- Title
-    --------------------------------------------------------
-
-    local titleEl = el:selectFirst(
-        ".novel-title, .title, h3, h4"
-    )
+    local titleEl = el:selectFirst(".novel-title")
 
     local title
 
@@ -141,7 +112,6 @@ local function parseSearchResult(el, seen)
         title = titleEl:text()
     end
 
-    -- Fallback to anchor text.
     if not title or title == "" then
         title = el:text()
     end
@@ -157,17 +127,11 @@ local function parseSearchResult(el, seen)
         return nil
     end
 
-
-    --------------------------------------------------------
-    -- Cover image
-    --------------------------------------------------------
-
-    local imageURL = nil
+    local imageURL
 
     local img = el:selectFirst("img")
 
     if img then
-
         imageURL = img:attr("src")
 
         if not imageURL or imageURL == "" then
@@ -179,18 +143,6 @@ local function parseSearchResult(el, seen)
         end
     end
 
-
-    --------------------------------------------------------
-    -- Mark URL as seen
-    --------------------------------------------------------
-
-    seen[link] = true
-
-
-    --------------------------------------------------------
-    -- Return Shosetsu Novel
-    --------------------------------------------------------
-
     return Novel {
         title = title,
         link = link,
@@ -199,52 +151,20 @@ local function parseSearchResult(el, seen)
 end
 
 
-------------------------------------------------------------
--- SEARCH
-------------------------------------------------------------
-
 ext.search = function(data)
 
     local query = data[QUERY]
-
-    local page = data[PAGE] or 1
 
     if not query or query == "" then
         return {}
     end
 
-    --------------------------------------------------------
-    -- A new FanMTL search generates a search ID.
-    --
-    -- For now the search itself is performed on page 1.
-    --------------------------------------------------------
-
-    if page ~= 1 then
-        return {}
-    end
-
-
-    --------------------------------------------------------
-    -- FanMTL / EmpireCMS search request
-    --
-    -- searchget = 1
-    -- keyboard  = search text
-    -- show      = title
-    --------------------------------------------------------
-
-    local searchURL = qs(
-        {
-            searchget = 1,
-            keyboard = query,
-            show = "title"
-        },
-        "https://www.fanmtl.com/e/search/"
-    )
-
-
-    --------------------------------------------------------
-    -- Fetch search results
-    --------------------------------------------------------
+    -- FanMTL uses EmpireCMS search.
+    local searchURL =
+        "https://www.fanmtl.com/e/search/" ..
+        "?searchget=1" ..
+        "&keyboard=" .. urlEncode(query) ..
+        "&show=title"
 
     local document = GETDocument(searchURL)
 
@@ -252,33 +172,39 @@ ext.search = function(data)
         return {}
     end
 
+    local links = document:select("a[href*='/novel/']")
 
-    --------------------------------------------------------
-    -- Find novel links
-    --------------------------------------------------------
-
-    local links = document:select(
-        "a[href*='/novel/']"
-    )
-
-    if links:isEmpty() then
+    if not links then
         return {}
     end
 
-
-    --------------------------------------------------------
-    -- Parse results
-    --------------------------------------------------------
-
+    local results = {}
     local seen = {}
 
-    local results = mapNotNil(
-        links,
-        function(el)
-            return parseSearchResult(el, seen)
-        end
-    )
+    -- Use the collection's map() API instead of get()/size()
+    -- or mapNotNil(), which varies between Shosetsu library versions.
+    local parsed = map(links, function(el)
 
+        local novel = makeNovel(el)
+
+        if not novel then
+            return nil
+        end
+
+        if seen[novel.link] then
+            return nil
+        end
+
+        seen[novel.link] = true
+
+        return novel
+    end)
+
+    for _, novel in ipairs(parsed) do
+        if novel then
+            table.insert(results, novel)
+        end
+    end
 
     return results
 end
