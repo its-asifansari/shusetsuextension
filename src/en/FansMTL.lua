@@ -47,7 +47,10 @@ local GENRES = {
 }
 
 
-local ext = Require("ReadWN")("https://www.fanmtl.com", {
+local BASE_URL = "https://www.fanmtl.com"
+
+
+local ext = Require("ReadWN")(BASE_URL, {
 
     id = 1308639971,
 
@@ -62,7 +65,6 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
 
     genres = GENRES,
 
-
     listingsMap = {
 
         {
@@ -74,7 +76,7 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
                 "#latest-updates .novel-list.grid.col .novel-item a",
 
             url = function(data)
-                return "https://www.fanmtl.com"
+                return BASE_URL
             end
         },
 
@@ -85,12 +87,11 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
             increments = true,
 
             url = function(data)
-
                 return
-                    "https://www.fanmtl.com/list/all/all-lastdotime-" ..
+                    BASE_URL ..
+                    "/list/all/all-lastdotime-" ..
                     (data[PAGE] - 1) ..
                     ".html"
-
             end
         },
 
@@ -101,12 +102,11 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
             increments = true,
 
             url = function(data)
-
                 return
-                    "https://www.fanmtl.com/list/all/all-onclick-" ..
+                    BASE_URL ..
+                    "/list/all/all-onclick-" ..
                     (data[PAGE] - 1) ..
                     ".html"
-
             end
         },
 
@@ -117,28 +117,28 @@ local ext = Require("ReadWN")("https://www.fanmtl.com", {
             increments = true,
 
             url = function(data)
-
                 return
-                    "https://www.fanmtl.com/list/all/all-newstime-" ..
+                    BASE_URL ..
+                    "/list/all/all-newstime-" ..
                     (data[PAGE] - 1) ..
                     ".html"
-
             end
         }
 
     },
+
 })
 
 
 ----------------------------------------------------------------
--- URL HELPERS
+-- URL ENCODING
 ----------------------------------------------------------------
 
-local function urlEncode(str)
+local function urlEncode(value)
 
-    str = tostring(str)
+    value = tostring(value)
 
-    return str:gsub(
+    return value:gsub(
         "([^%w%-_%.~])",
         function(c)
             return string.format(
@@ -150,6 +150,10 @@ local function urlEncode(str)
 
 end
 
+
+----------------------------------------------------------------
+-- ABSOLUTE URL
+----------------------------------------------------------------
 
 local function absoluteURL(url)
 
@@ -169,17 +173,17 @@ local function absoluteURL(url)
 
 
     if url:sub(1, 1) == "/" then
-        return "https://www.fanmtl.com" .. url
+        return BASE_URL .. url
     end
 
 
-    return "https://www.fanmtl.com/" .. url
+    return BASE_URL .. "/" .. url
 
 end
 
 
 ----------------------------------------------------------------
--- IMAGE HELPERS
+-- CLEAN IMAGE URL
 ----------------------------------------------------------------
 
 local function cleanImageURL(url)
@@ -189,8 +193,8 @@ local function cleanImageURL(url)
     end
 
 
-    -- Ignore obvious placeholder images.
     local lower = url:lower()
+
 
     if lower:find("placeholder", 1, true) then
         return nil
@@ -202,129 +206,76 @@ local function cleanImageURL(url)
     end
 
 
-    if lower:find("default", 1, true) then
-        return nil
-    end
-
-
     return absoluteURL(url)
 
 end
 
 
-local function getImageFromElement(el)
+----------------------------------------------------------------
+-- GET IMAGE FROM ELEMENT
+----------------------------------------------------------------
+
+local function getImage(el)
 
     if not el then
         return nil
     end
 
 
-    ------------------------------------------------------------
-    -- Lazy-loading attributes
-    ------------------------------------------------------------
-
-    local imageURL
+    local image
 
 
-    imageURL = el:attr("data-original")
+    image = el:attr("data-original")
 
-    imageURL = cleanImageURL(imageURL)
+    image = cleanImageURL(image)
 
-    if imageURL then
-        return imageURL
+    if image then
+        return image
     end
 
 
-    imageURL = el:attr("data-src")
+    image = el:attr("data-src")
 
-    imageURL = cleanImageURL(imageURL)
+    image = cleanImageURL(image)
 
-    if imageURL then
-        return imageURL
+    if image then
+        return image
     end
 
 
-    imageURL = el:attr("data-lazy-src")
+    image = el:attr("data-lazy-src")
 
-    imageURL = cleanImageURL(imageURL)
+    image = cleanImageURL(image)
 
-    if imageURL then
-        return imageURL
+    if image then
+        return image
     end
 
 
-    imageURL = el:attr("data-cfsrc")
+    image = el:attr("data-cfsrc")
 
-    imageURL = cleanImageURL(imageURL)
+    image = cleanImageURL(image)
 
-    if imageURL then
-        return imageURL
+    if image then
+        return image
     end
 
 
-    imageURL = el:attr("data-image")
+    image = el:attr("data-image")
 
-    imageURL = cleanImageURL(imageURL)
+    image = cleanImageURL(image)
 
-    if imageURL then
-        return imageURL
+    if image then
+        return image
     end
 
 
-    imageURL = el:attr("data-bg")
+    image = el:attr("src")
 
-    imageURL = cleanImageURL(imageURL)
+    image = cleanImageURL(image)
 
-    if imageURL then
-        return imageURL
-    end
-
-
-    imageURL = el:attr("data-background-image")
-
-    imageURL = cleanImageURL(imageURL)
-
-    if imageURL then
-        return imageURL
-    end
-
-
-    ------------------------------------------------------------
-    -- Normal src
-    ------------------------------------------------------------
-
-    imageURL = el:attr("src")
-
-    imageURL = cleanImageURL(imageURL)
-
-    if imageURL then
-        return imageURL
-    end
-
-
-    ------------------------------------------------------------
-    -- CSS background-image
-    ------------------------------------------------------------
-
-    local style = el:attr("style")
-
-    if style and style ~= "" then
-
-        local bg =
-            style:match(
-                "background%-image%s*:%s*url%(['\"]?([^'\")]+)"
-            )
-
-        if bg then
-
-            imageURL = cleanImageURL(bg)
-
-            if imageURL then
-                return imageURL
-            end
-
-        end
-
+    if image then
+        return image
     end
 
 
@@ -334,19 +285,15 @@ end
 
 
 ----------------------------------------------------------------
--- NOVEL PARSER
+-- PARSE ONE SEARCH LINK
 ----------------------------------------------------------------
 
-local function makeNovel(el)
+local function parseSearchLink(el)
 
     if not el then
         return nil
     end
 
-
-    ------------------------------------------------------------
-    -- Novel URL
-    ------------------------------------------------------------
 
     local href = el:attr("href")
 
@@ -370,7 +317,7 @@ local function makeNovel(el)
 
 
     ------------------------------------------------------------
-    -- Title
+    -- TITLE
     ------------------------------------------------------------
 
     local title
@@ -407,36 +354,46 @@ local function makeNovel(el)
 
 
     ------------------------------------------------------------
-    -- Cover image
+    -- COVER
     ------------------------------------------------------------
 
     local imageURL
 
 
-    ------------------------------------------------------------
-    -- First check an image INSIDE the novel link.
-    ------------------------------------------------------------
-
-    local img = el:selectFirst("img")
+    local img =
+        el:selectFirst("img")
 
 
     if img then
-        imageURL = getImageFromElement(img)
+        imageURL = getImage(img)
     end
 
 
     ------------------------------------------------------------
-    -- Sometimes the link itself carries the image.
+    -- If the image is a sibling of the link, inspect the
+    -- immediate parent result container.
     ------------------------------------------------------------
 
     if not imageURL then
-        imageURL = getImageFromElement(el)
+
+        local parent =
+            el:selectFirst(
+                "xpath=.."
+            )
+
+        if parent then
+
+            local parentImg =
+                parent:selectFirst("img")
+
+            if parentImg then
+                imageURL = getImage(parentImg)
+            end
+
+        end
+
     end
 
-
-    ------------------------------------------------------------
-    -- Build Novel
-    ------------------------------------------------------------
 
     return Novel {
         title = title,
@@ -461,21 +418,138 @@ ext.search = function(data)
     end
 
 
+    local currentPage =
+        data[PAGE] or 1
+
+
     ------------------------------------------------------------
-    -- FanMTL uses EmpireCMS search.
+    -- FanMTL uses EmpireCMS.
     --
-    -- Do NOT request each novel page here.
+    -- The important fields are:
+    --
+    -- keyboard
+    -- show
+    -- tempid
+    -- tbname
+    --
+    -- These correspond to FanMTL's search form.
     ------------------------------------------------------------
 
-    local searchURL =
-        "https://www.fanmtl.com/e/search/" ..
-        "?searchget=1" ..
-        "&keyboard=" ..
-        urlEncode(query) ..
-        "&show=title"
+    local encoded =
+        urlEncode(query)
 
 
-    local document = GETDocument(searchURL)
+    ------------------------------------------------------------
+    -- POST SEARCH
+    ------------------------------------------------------------
+
+    local payload =
+        "keyboard=" .. encoded ..
+        "&show=title" ..
+        "&tempid=1" ..
+        "&tbname=news"
+
+
+    local mediaType =
+        MediaType(
+            "application/x-www-form-urlencoded"
+        )
+
+
+    local body =
+        RequestBody(
+            payload,
+            mediaType
+        )
+
+
+    local headers =
+        HeadersBuilder()
+            :add(
+                "Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            )
+            :add(
+                "Accept-Language",
+                "en-US,en;q=0.5"
+            )
+            :add(
+                "Content-Type",
+                "application/x-www-form-urlencoded"
+            )
+            :add(
+                "Origin",
+                BASE_URL
+            )
+            :add(
+                "Referer",
+                BASE_URL .. "/search.html"
+            )
+            :build()
+
+
+    local document
+
+
+    ------------------------------------------------------------
+    -- pcall prevents a failed POST from crashing the extension.
+    ------------------------------------------------------------
+
+    local postOK, postResult =
+        pcall(
+            function()
+
+                return RequestDocument(
+                    POST(
+                        BASE_URL ..
+                        "/e/search/index.php",
+                        headers,
+                        body
+                    )
+                )
+
+            end
+        )
+
+
+    if postOK then
+        document = postResult
+    end
+
+
+    ------------------------------------------------------------
+    -- GET FALLBACK
+    ------------------------------------------------------------
+
+    if not document then
+
+        local searchURL =
+            BASE_URL ..
+            "/e/search/" ..
+            "?searchget=1" ..
+            "&keyboard=" .. encoded ..
+            "&show=title" ..
+            "&tempid=1" ..
+            "&tbname=news"
+
+
+        local getOK, getResult =
+            pcall(
+                function()
+
+                    return GETDocument(
+                        searchURL
+                    )
+
+                end
+            )
+
+
+        if getOK then
+            document = getResult
+        end
+
+    end
 
 
     if not document then
@@ -484,7 +558,10 @@ ext.search = function(data)
 
 
     ------------------------------------------------------------
-    -- FanMTL search results expose the novel URLs directly.
+    -- SEARCH RESULTS
+    --
+    -- Use the actual novel links because those were already
+    -- proven to work with FanMTL search.
     ------------------------------------------------------------
 
     local links =
@@ -507,7 +584,8 @@ ext.search = function(data)
         links,
         function(el)
 
-            local href = el:attr("href")
+            local href =
+                el:attr("href")
 
 
             if not href or href == "" then
@@ -521,7 +599,7 @@ ext.search = function(data)
 
 
             ----------------------------------------------------
-            -- Deduplicate BEFORE creating Novel.
+            -- Deduplicate before Novel creation.
             ----------------------------------------------------
 
             if seen[href] then
@@ -536,14 +614,17 @@ ext.search = function(data)
             -- Parse result.
             ----------------------------------------------------
 
-            local novel = makeNovel(el)
+            local novel =
+                parseSearchLink(el)
 
 
             if novel then
+
                 table.insert(
                     results,
                     novel
                 )
+
             end
 
 
