@@ -89,7 +89,7 @@ ext.search = function(data)
     return {
         Novel {
             title = query,
-            link = "novel/" .. slug .. ".html"
+            link = "/novel/" .. slug .. ".html"
         }
     }
 end
